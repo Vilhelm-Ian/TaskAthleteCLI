@@ -530,10 +530,16 @@ pub fn handle_list_exercises(
     service: &AppService, // Immutable borrow sufficient
     export_csv: bool,
     type_: Option<cli::ExerciseTypeCli>,
-    muscle: Option<String>,
+    muscles: Option<Vec<String>>,
 ) -> Result<()> {
     let db_type_filter = type_.map(cli_type_to_db_type);
-    match service.list_exercises(db_type_filter, muscle.as_deref()) {
+
+    // Convert Option<Vec<String>> to Option<Vec<&str>> for list_exercises
+    let muscle_refs: Option<Vec<&str>> = muscles
+        .as_ref()
+        .map(|m| m.iter().map(|s| s.as_str()).collect());
+
+    match service.list_exercises(db_type_filter, muscle_refs) {
         Ok(exercises) if exercises.is_empty() => {
             println!("No exercise definitions found matching the criteria.");
             if export_csv {

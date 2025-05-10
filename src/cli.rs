@@ -227,7 +227,7 @@ pub enum Commands {
         type_: Option<ExerciseTypeCli>,
         /// Filter by a target muscle (matches if the muscle is in the list)
         #[arg(short = 'm', long)] // short 'm'
-        muscle: Option<String>,
+        muscle: Option<Vec<String>>,
     },
     /// Show statistics for a specific exercise
     Stats {
