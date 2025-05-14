@@ -39,19 +39,29 @@ TaskAthlete is designed for fitness enthusiasts and athletes who prefer managing
 
 ## Installation
 
-(Instructions on how to install `ta` would go here. This might involve:
+### Precomplide binary
 *   Downloading a pre-compiled binary from a releases page.
-*   Using a package manager (e.g., `brew install ta`, `apt-get install ta`).
-*   Building from source: `git clone <repository-url>` and then `cargo build --release` if it's a Rust project, or similar for other languages.)
+### Source
+1.   First you will need to clone this repo and the repo for the [library](https://github.com/Vilhelm-Ian/TaskAthlete) in the same directory. 
+2.   And then `cargo build --release`
+### Nix
+1.   First you will need to clone this repo and the repo for the [library](https://github.com/Vilhelm-Ian/TaskAthlete) in the same directory. 
+2.   Add the following commands to home-manager.nix ```nix
+  let
+     task-athlete-lib = pkgs.callPackage "${directory_to_library}/default.nix" {};
+     task-athlete-cli = (pkgs.callPackage "${directory_to_library}/default.nix" {inherit task-athlete-lib;}).overrideAttrs (oldAttrs: {
+        postUnpack = ''
+          mkdir -p $sourceRoot/../
+          ln -s ${task-athlete-lib.src} $sourceRoot/../task-athlete-lib
+        '';
+      });
 
-**Example Placeholder:**
-
-To install `ta`, please refer to the [releases page](<link-to-your-releases-page>) for pre-compiled binaries for your operating system.
-Alternatively, if you have [Rust installed](https://www.rust-lang.org/tools/install), you can build from source:
-```bash
-git clone <your-git-repository-url>
-cd ta
-cargo build --release
+  in 
+  {
+   home.packages = [
+      task-athlete-cli
+   ]
+  }
 ```
 
 ## Usage
