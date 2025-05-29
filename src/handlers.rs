@@ -730,3 +730,42 @@ pub fn handle_set_streak_interval(service: &mut AppService, days: u32) -> Result
     }
     Ok(())
 }
+
+pub async fn handle_sync(
+    service: &mut AppService,
+    server_url_override: Option<String>,
+) -> Result<()> {
+    println!("Starting synchronization...");
+    match service.perform_sync(server_url_override).await {
+        Ok((summary_sent, summary_received)) => {
+            println!("\nSynchronization successful!");
+            println!("------------------------------------");
+            println!("Data Sent to Server:");
+            println!("------------------------------------");
+            println!(
+                "  Config changed: {}",
+                if summary_sent.config { "Yes" } else { "No" }
+            );
+            println!("  Exercises:      {}", summary_sent.exercises);
+            println!("  Workouts:       {}", summary_sent.workouts);
+            println!("  Aliases:        {}", summary_sent.aliases);
+            println!("  Bodyweights:    {}", summary_sent.bodyweights);
+            println!("------------------------------------");
+            println!("Data Received from Server:");
+            println!("------------------------------------");
+            println!(
+                "  Config changed: {}",
+                if summary_received.config { "Yes" } else { "No" }
+            );
+            println!("  Exercises:      {}", summary_received.exercises);
+            println!("  Workouts:       {}", summary_received.workouts);
+            println!("  Aliases:        {}", summary_received.aliases);
+            println!("  Bodyweights:    {}", summary_received.bodyweights);
+            println!("------------------------------------");
+        }
+        Err(e) => {
+            bail!("Synchronization failed: {}", e);
+        }
+    }
+    Ok(())
+}

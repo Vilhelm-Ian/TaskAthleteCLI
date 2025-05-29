@@ -349,6 +349,11 @@ pub enum Commands {
         #[arg(value_enum)]
         units: UnitsCli,
     },
+    Sync {
+        /// Optional: Override the server URL from config (e.g., http://localhost:3030)
+        #[arg(long)]
+        server_url: Option<String>,
+    },
     GenerateCompletion {
         /// The shell to generate completions for
         #[arg(value_enum)]

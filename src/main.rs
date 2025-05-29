@@ -9,7 +9,8 @@ use anyhow::{Context, Result};
 use std::io::stdout;
 use task_athlete_lib::AppService;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // --- Parse Args & Handle Completion ---
     let cli_args = cli::parse_args();
     let export_csv = cli_args.export_csv; // Extract global flag early
@@ -236,6 +237,10 @@ fn main() -> Result<()> {
         )?,
         cli::Commands::SetStreakInterval { days } => {
             handlers::handle_set_streak_interval(&mut service, days)?
+        }
+
+        cli::Commands::Sync { server_url } => {
+            handlers::handle_sync(&mut service, server_url).await? // Added .await
         }
 
         // --- Completion Generation (already handled, but exhaustive match) ---
