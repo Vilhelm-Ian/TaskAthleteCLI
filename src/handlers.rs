@@ -6,8 +6,8 @@ use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use comfy_table::Color;
 use std::io::{stdin, stdout, Write};
 use task_athlete_lib::{
-    AddWorkoutParams, AppService, ConfigError, DbError, EditWorkoutParams, ExerciseType, Units,
-    VolumeFilters, WorkoutFilters,
+    sync_client, AddWorkoutParams, AppService, ConfigError, DbError, EditWorkoutParams,
+    ExerciseType, SyncSummary, Units, VolumeFilters, WorkoutFilters,
 };
 
 // --- Helper Functions ---
@@ -736,36 +736,77 @@ pub async fn handle_sync(
     server_url_override: Option<String>,
 ) -> Result<()> {
     println!("Starting synchronization...");
-    match service.perform_sync(server_url_override).await {
-        Ok((summary_sent, summary_received)) => {
-            println!("\nSynchronization successful!");
-            println!("------------------------------------");
-            println!("Data Sent to Server:");
-            println!("------------------------------------");
-            println!(
-                "  Config changed: {}",
-                if summary_sent.config { "Yes" } else { "No" }
-            );
-            println!("  Exercises:      {}", summary_sent.exercises);
-            println!("  Workouts:       {}", summary_sent.workouts);
-            println!("  Aliases:        {}", summary_sent.aliases);
-            println!("  Bodyweights:    {}", summary_sent.bodyweights);
-            println!("------------------------------------");
-            println!("Data Received from Server:");
-            println!("------------------------------------");
-            println!(
-                "  Config changed: {}",
-                if summary_received.config { "Yes" } else { "No" }
-            );
-            println!("  Exercises:      {}", summary_received.exercises);
-            println!("  Workouts:       {}", summary_received.workouts);
-            println!("  Aliases:        {}", summary_received.aliases);
-            println!("  Bodyweights:    {}", summary_received.bodyweights);
-            println!("------------------------------------");
-        }
-        Err(e) => {
-            bail!("Synchronization failed: {}", e);
-        }
-    }
+
+    // Phase 1: Read local data. The mutable borrow of `service` ends when this block finishes.
+    let (server_url, last_sync_ts, local_changes, summary_sent) = {
+        println!("Collecting local changes...");
+        let server_url = service
+            .get_server_url(server_url_override)
+            .context("Server URL not configured or provided.")?;
+        let last_sync_ts = service.get_last_sync_timestamp();
+
+        let local_changes = service
+            .collect_local_changes(last_sync_ts)
+            .context("Failed to collect local changes from the database.")?;
+
+        let summary_sent = SyncSummary {
+            config: local_changes.config.is_some(),
+            exercises: local_changes.exercises.len(),
+            workouts: local_changes.workouts.len(),
+            aliases: local_changes.aliases.len(),
+            bodyweights: local_changes.bodyweights.len(),
+        };
+
+        (server_url, last_sync_ts, local_changes, summary_sent)
+    };
+
+    // Phase 2: Perform the network request. `service` is not borrowed here.
+    let client = sync_client::SyncClient::new(server_url.clone());
+    println!("Pushing changes to server: {}...", server_url);
+    let server_response = client
+        .push_and_pull_changes(last_sync_ts, local_changes)
+        .await
+        .context("Sync communication with the server failed")?;
+
+    // Phase 3: Write data received from the server. `service` is borrowed mutably again.
+    let summary_received = {
+        println!("Applying server changes...");
+        let summary = service
+            .apply_server_changes(server_response.data_to_client)
+            .context("Failed to apply server changes to the local database")?;
+
+        service
+            .set_last_sync_timestamp(server_response.server_current_ts)
+            .context("Failed to update the last sync timestamp in the config file")?;
+
+        summary
+    };
+
+    // Display the results of the sync operation
+    println!("\nSynchronization successful!");
+    println!("------------------------------------");
+    println!("Data Sent to Server:");
+    println!("------------------------------------");
+    println!(
+        "  Config changed: {}",
+        if summary_sent.config { "Yes" } else { "No" }
+    );
+    println!("  Exercises:      {}", summary_sent.exercises);
+    println!("  Workouts:       {}", summary_sent.workouts);
+    println!("  Aliases:        {}", summary_sent.aliases);
+    println!("  Bodyweights:    {}", summary_sent.bodyweights);
+    println!("------------------------------------");
+    println!("Data Received from Server:");
+    println!("------------------------------------");
+    println!(
+        "  Config changed: {}",
+        if summary_received.config { "Yes" } else { "No" }
+    );
+    println!("  Exercises:      {}", summary_received.exercises);
+    println!("  Workouts:       {}", summary_received.workouts);
+    println!("  Aliases:        {}", summary_received.aliases);
+    println!("  Bodyweights:    {}", summary_received.bodyweights);
+    println!("------------------------------------");
+
     Ok(())
 }
